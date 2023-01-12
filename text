@@ -1,0 +1,16 @@
+commands
+
+add activity
+/add activity - add new activity into the database 
+
+done activity
+/done activity - update the activity status 
+
+list activities
+/list - get all the list of activities and their status
+
+delete activity
+/delete - delete an activity from username
+
+scheduler (SOON)
+run overall summary activities for yesterday, reset back the database
