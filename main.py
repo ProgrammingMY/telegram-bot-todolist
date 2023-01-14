@@ -6,7 +6,7 @@ TOKEN = os.getenv('BOT_TOKEN')
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-acc = gspread.service_account()
+acc = gspread.service_account(filename="/etc/secrets/service_account.json")
 sheet = acc.open(os.getenv('SHEET'))
 
 awaiting_response = False
