@@ -1,13 +1,15 @@
 import os
 import gspread
+import threading
 from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv('BOT_TOKEN')
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-acc = gspread.service_account()
+acc = gspread.service_account(filename="/etc/secrets/service_account.json")
 sheet = acc.open(os.getenv('SHEET'))
+lock = threading.Lock()
 
 awaiting_response = False
 data = {}
@@ -192,4 +194,6 @@ def callback_query(activity):
 
     bot.send_message(activity.message.chat.id, "What is the status?", reply_markup=markup)
 
-bot.infinity_polling()
+if __name__ == "__main__":
+    with lock:
+        bot.infinity_polling()
