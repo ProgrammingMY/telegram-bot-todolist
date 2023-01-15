@@ -54,7 +54,12 @@ def construct_table(data, spacing=15):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "Loqman sayang Mira")
+    bot.send_message(message.chat.id, "Welcome!\n\
+    /start - Getting started\n\
+    /add <activity> - Add an activity into list\n\
+    /delete - Delete an activity from the list\n\
+    /update - Update the status of an activity\n\
+    /list - Display all activities and their status", parse_mode="Markdown")
 
 # add a activity
 @bot.message_handler(commands=['add'])
@@ -158,6 +163,12 @@ def delete_activity(activity):
         # delete activity
         wks = sheet.worksheet(str(activity.from_user.username))
         cell = wks.find(activity.text.lower())
+
+        # The activity is not found
+        if cell is None:
+            bot.send_message(activity.chat.id, "The activity is not found", reply_markup=ReplyKeyboardRemove())
+            return
+        
         wks.delete_rows(cell.row)
         bot.send_message(activity.chat.id, activity.text + " has been deleted", reply_markup=ReplyKeyboardRemove())
         awaiting_response = False
@@ -171,6 +182,10 @@ def yesno_query(message):
 
     wks = sheet.worksheet(str(message.from_user.username))
     cell = wks.find(activity.lower())
+
+    if cell is None:
+        data = {}
+        return
 
     if message.data == 'yes':
         wks.update_cell(cell.row, 2, str(True))
@@ -196,4 +211,4 @@ def callback_query(activity):
 
 if __name__ == "__main__":
     with lock:
-        bot.infinity_polling()
+        bot.polling()
