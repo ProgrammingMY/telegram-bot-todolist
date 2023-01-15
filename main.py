@@ -211,4 +211,8 @@ def callback_query(activity):
 
 if __name__ == "__main__":
     with lock:
-        bot.polling()
+        try:
+            bot.polling()
+        except ConnectionResetError:
+            pass
+
