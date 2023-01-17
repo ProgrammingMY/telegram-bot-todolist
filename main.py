@@ -7,7 +7,21 @@ TOKEN = os.getenv('BOT_TOKEN')
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-acc = gspread.service_account(filename="/etc/secrets/service_account.json")
+## google account credentials
+credentials = {
+  "type": os.getenv('TYPE'),
+  "project_id": os.getenv('PROJECT_ID'),
+  "private_key_id": os.getenv('PRIVATE_KEY_ID'),
+  "private_key": os.getenv('PRIVATE_KEY').replace('\\n', '\n'),
+  "client_email": os.getenv('CLIENT_EMAIL'),
+  "client_id": os.getenv('CLIENT_ID'),
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": os.getenv('CLIENT_X509_CERT_URL')
+}
+
+acc = gspread.service_account_from_dict(credentials)
 sheet = acc.open(os.getenv('SHEET'))
 lock = threading.Lock()
 
@@ -184,7 +198,6 @@ def yesno_query(message):
     cell = wks.find(activity.lower())
 
     if cell is None:
-        data = {}
         return
 
     if message.data == 'yes':
@@ -193,8 +206,6 @@ def yesno_query(message):
     elif message.data == 'no':
         wks.update_cell(cell.row, 2, str(False))
         bot.send_message(message.message.chat.id, activity + " has been updated")
-
-    data = {}
 
 # update callback
 @bot.callback_query_handler(func=lambda message: True)
@@ -214,5 +225,5 @@ if __name__ == "__main__":
         try:
             bot.polling()
         except ConnectionResetError:
-            pass
+            pass        
 
