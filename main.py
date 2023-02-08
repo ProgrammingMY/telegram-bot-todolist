@@ -171,6 +171,10 @@ def list_activity(message):
 # delete function
 @bot.callback_query_handler(func=lambda message: message.data.startswith('delete_'))
 def delete_activity(callback_query):
+    # ensure the correct user that interact with the button
+    if callback_query.message.reply_to_message.from_user.id != callback_query.from_user.id:
+        return
+
     # get the task name from the callback query
     task = callback_query.data.split("_")[1]
 
@@ -193,7 +197,8 @@ def delete_activity(callback_query):
 # yes no
 @bot.callback_query_handler(func=lambda message: message.data.startswith('update_'))
 def yesno_query(message):
-    if message.message.chat.id != message.from_user.id:
+    # ensure the correct user that interact with the button
+    if message.json['from']['id'] != message.from_user.id:
         return
 
     # get the activity name from the callback query
@@ -215,14 +220,17 @@ def yesno_query(message):
 # cancel operation
 @bot.callback_query_handler(func=lambda message: message.data.startswith('CANCEL'))
 def cancel_query(callback_query):
-    if callback_query.message.chat.id != callback_query.from_user.id:
+    # ensure the correct user that interact with the button
+    if callback_query.message.reply_to_message.from_user.id != callback_query.from_user.id:
         return
+    
     bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
 
 # update callback
 @bot.callback_query_handler(func=lambda message: message.data.startswith('status_'))
 def callback_query(activity):
-    if activity.message.chat.id != activity.from_user.id:
+    # ensure the correct user that interact with the button
+    if activity.message.reply_to_message.from_user.id != activity.from_user.id:
         return
 
     # get the activity name from the callback query
