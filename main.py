@@ -25,9 +25,6 @@ acc = gspread.service_account_from_dict(credentials)
 sheet = acc.open(os.getenv('SHEET'))
 lock = threading.Lock()
 
-awaiting_response = False
-data = {}
-
 # contruct inline keyboard button
 def reply_keyboard(activities):
     keyboard = InlineKeyboardMarkup(row_width=1)
@@ -35,7 +32,7 @@ def reply_keyboard(activities):
         button = InlineKeyboardButton(activity, callback_data=f"delete_{activity}")
         keyboard.add(button)
 
-    button = InlineKeyboardButton("Cancel", callback_data="cancel")
+    button = InlineKeyboardButton("EXIT", callback_data="CANCEL")
     keyboard.add(button)
 
     return keyboard
@@ -43,10 +40,10 @@ def reply_keyboard(activities):
 def inline_keyboard(items):
     markup = InlineKeyboardMarkup(row_width=1)
     for item in items:
-        button = InlineKeyboardButton(item, callback_data=item)
+        button = InlineKeyboardButton(item, callback_data=f"status_{item}")
         markup.add(button)
 
-    button = InlineKeyboardButton("Cancel", callback_data="cancel")
+    button = InlineKeyboardButton("EXIT", callback_data="CANCEL")
     markup.add(button)
 
     return markup
@@ -194,50 +191,49 @@ def delete_activity(callback_query):
     bot.send_message(callback_query.message.chat.id, task + " has been deleted")
 
 # yes no
-@bot.callback_query_handler(func=lambda message: message.data.startswith('status_'))
+@bot.callback_query_handler(func=lambda message: message.data.startswith('update_'))
 def yesno_query(message):
     if message.message.chat.id != message.from_user.id:
         return
 
-    global data
-    # get the data from first callback (activity)
-    activity = data[message.message.chat.id]
-
+    # get the activity name from the callback query
+    activity = message.data.split("_")[1]
     wks = sheet.worksheet(str(message.from_user.username))
     cell = wks.find(activity.lower())
 
     if cell is None:
         return
 
-    if message.data == 'status_yes':
+    status = message.data.split("_")[2]
+    if status == 'yes':
         wks.update_cell(cell.row, 2, str(True))
-    elif message.data == 'status_no':
+    elif status == 'no':
         wks.update_cell(cell.row, 2, str(False))
 
     bot.edit_message_text(chat_id=message.message.chat.id, message_id=message.message.message_id, text=f"{activity} has been updated")
 
 # cancel operation
-@bot.callback_query_handler(func=lambda message: message.data.startswith('cancel'))
+@bot.callback_query_handler(func=lambda message: message.data.startswith('CANCEL'))
 def cancel_query(callback_query):
     if callback_query.message.chat.id != callback_query.from_user.id:
         return
     bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
 
 # update callback
-@bot.callback_query_handler(func=lambda message: True)
+@bot.callback_query_handler(func=lambda message: message.data.startswith('status_'))
 def callback_query(activity):
     if activity.message.chat.id != activity.from_user.id:
         return
 
-    # store the data from first callback
-    data[activity.message.chat.id] = activity.data
+    # get the activity name from the callback query
+    task = activity.data.split("_")[1]
 
     markup = InlineKeyboardMarkup(row_width=2)
-    yes = InlineKeyboardButton('Yes', callback_data='status_yes')
-    no = InlineKeyboardButton('No', callback_data='status_no')
+    yes = InlineKeyboardButton('Yes', callback_data=f'update_{task}_yes')
+    no = InlineKeyboardButton('No', callback_data=f'update_{task}_no')
     markup.add(yes, no)
 
-    bot.send_message(activity.message.chat.id, text=f"{activity.data} completed?", reply_markup=markup)
+    bot.send_message(activity.message.chat.id, text=f"{task} completed?", reply_markup=markup)
 
 if __name__ == "__main__":
     with lock:
