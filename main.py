@@ -29,14 +29,14 @@ awaiting_response = False
 data = {}
 
 # contruct inline keyboard button
-def markup_inline(activities):
-    global data
-    global awaiting_response
-    keyboard = ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+def reply_keyboard(activities):
+    keyboard = InlineKeyboardMarkup(row_width=1)
     for activity in activities:
-        button = KeyboardButton(activity)
+        button = InlineKeyboardButton(activity, callback_data=f"delete_{activity}")
         keyboard.add(button)
-    awaiting_response = True
+
+    button = InlineKeyboardButton("Cancel", callback_data="cancel")
+    keyboard.add(button)
 
     return keyboard
 
@@ -46,9 +46,12 @@ def inline_keyboard(items):
         button = InlineKeyboardButton(item, callback_data=item)
         markup.add(button)
 
+    button = InlineKeyboardButton("Cancel", callback_data="cancel")
+    markup.add(button)
+
     return markup
 
-bot = telebot.TeleBot(TOKEN, parse_mode=None)
+bot = telebot.TeleBot(TOKEN)
 print("Bot is online....")
 
 status_map = {
@@ -122,7 +125,7 @@ def delete_activity(message):
     
     # get all activities
     activities = wks.col_values(1)[1:]
-    bot.reply_to(message, "Delete which activity?", reply_markup = markup_inline(activities))
+    bot.reply_to(message, "Delete which activity?", reply_markup = reply_keyboard(activities))
 
 # get all activites list
 @bot.message_handler(commands=['list'])
@@ -169,27 +172,33 @@ def list_activity(message):
     bot.reply_to(message, "Choose an activity", reply_markup = inline_keyboard(activities))
 
 # delete function
-@bot.message_handler(content_types=['text'])
-def delete_activity(activity):
-    global awaiting_response
-    global data
-    if awaiting_response:
-        # delete activity
-        wks = sheet.worksheet(str(activity.from_user.username))
-        cell = wks.find(activity.text.lower())
+@bot.callback_query_handler(func=lambda message: message.data.startswith('delete_'))
+def delete_activity(callback_query):
+    # get the task name from the callback query
+    task = callback_query.data.split("_")[1]
 
-        # The activity is not found
-        if cell is None:
-            bot.send_message(activity.chat.id, "The activity is not found", reply_markup=ReplyKeyboardRemove())
-            return
-        
-        wks.delete_rows(cell.row)
-        bot.send_message(activity.chat.id, activity.text + " has been deleted", reply_markup=ReplyKeyboardRemove())
-        awaiting_response = False
+    # delete activity
+    wks = sheet.worksheet(str(callback_query.from_user.username))
+    cell = wks.find(task)
+
+    # The activity is not found
+    if cell is None:
+        bot.send_message(callback_query.message.chat.id, "The activity is not found")
+        return
+    
+    wks.delete_rows(cell.row)
+
+    # update the list
+    activities = wks.col_values(1)[1:]
+    bot.edit_message_text(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id, text=f"Delete which activity?", reply_markup=reply_keyboard(activities))
+    bot.send_message(callback_query.message.chat.id, task + " has been deleted")
 
 # yes no
-@bot.callback_query_handler(func=lambda message: message.data in ['yes', 'no'])
+@bot.callback_query_handler(func=lambda message: message.data.startswith('status_'))
 def yesno_query(message):
+    if message.message.chat.id != message.from_user.id:
+        return
+
     global data
     # get the data from first callback (activity)
     activity = data[message.message.chat.id]
@@ -200,30 +209,40 @@ def yesno_query(message):
     if cell is None:
         return
 
-    if message.data == 'yes':
+    if message.data == 'status_yes':
         wks.update_cell(cell.row, 2, str(True))
-        bot.send_message(message.message.chat.id, activity + " has been updated")
-    elif message.data == 'no':
+    elif message.data == 'status_no':
         wks.update_cell(cell.row, 2, str(False))
-        bot.send_message(message.message.chat.id, activity + " has been updated")
+
+    bot.edit_message_text(chat_id=message.message.chat.id, message_id=message.message.message_id, text=f"{activity} has been updated")
+
+# cancel operation
+@bot.callback_query_handler(func=lambda message: message.data.startswith('cancel'))
+def cancel_query(callback_query):
+    if callback_query.message.chat.id != callback_query.from_user.id:
+        return
+    bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
 
 # update callback
 @bot.callback_query_handler(func=lambda message: True)
 def callback_query(activity):
+    if activity.message.chat.id != activity.from_user.id:
+        return
+
     # store the data from first callback
     data[activity.message.chat.id] = activity.data
 
     markup = InlineKeyboardMarkup(row_width=2)
-    yes = InlineKeyboardButton('Done', callback_data='yes')
-    no = InlineKeyboardButton('Not Done', callback_data='no')
+    yes = InlineKeyboardButton('Yes', callback_data='status_yes')
+    no = InlineKeyboardButton('No', callback_data='status_no')
     markup.add(yes, no)
 
-    bot.send_message(activity.message.chat.id, "What is the status?", reply_markup=markup)
+    bot.send_message(activity.message.chat.id, text=f"{activity.data} completed?", reply_markup=markup)
 
 if __name__ == "__main__":
     with lock:
         try:
-            bot.polling()
+            bot.infinity_polling()
         except ConnectionResetError:
             pass        
 
