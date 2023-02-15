@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv('BOT_TOKEN')
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 ## google account credentials
 credentials = {
@@ -82,7 +82,10 @@ def add_activity(message):
     args = message.text.split()[1:]
     if args == []:
         return
-    activity = " ".join(args).lower()
+
+    # get array of activities separated by comma
+    # eliminate space in front and back of each activity
+    activities = [activity.strip() for activity in " ".join(args).split(",")]
 
     # get username
     username = str(message.from_user.username)
@@ -95,16 +98,35 @@ def add_activity(message):
         wks.update('A1', 'Activity')
         wks.update('B1', 'Done')
 
-    # find row with the activity
-    cell = wks.find(activity)
-
-    if cell is None:
+    # store all activities into sheet
+    for activity in activities:
         wks.append_row([activity, str(False)], table_range="A1:B1")
-        bot.reply_to(message, "Added")
-    else:
-        bot.reply_to(message, "The activity already there")
 
-    
+    bot.reply_to(message, "Added activity(s) successfully")
+
+# reset all activities to false status
+@bot.message_handler(commands=['reset'])
+def reset_activity(message):
+    # get username
+    username = str(message.from_user.username)
+
+    # check if the sheet is available for user
+    try:
+        wks = sheet.worksheet(username)
+    except:
+        wks = sheet.add_worksheet(username, rows=100, cols=5)
+        wks.update('A1', 'Activity')
+        wks.update('B1', 'Done')
+
+    # get all activities and total activities
+    activities = wks.col_values(1)[1:]
+    count = len(activities)
+
+    # update all activities to false status
+    for row in range(2, count+2):
+        wks.update_cell(row, 2, "False")
+
+    bot.reply_to(message, "Reset all activities to false status")
 
 # delete a activity
 @bot.message_handler(commands=['delete'])
