@@ -1,6 +1,11 @@
 # telegram-bot-todolist
 Telegram bot for doing to do list that you can share with friends. Integrate with Google Sheets API for database
 
+# environment variables
+BOT_TOKEN - telegram bot token get from botfather
+SHEET - google sheet name
+GOOGLE_SHEET_CREDENTIALS - google sheet credentials get from google cloud console
+
 # commands
 
 ## add activity
