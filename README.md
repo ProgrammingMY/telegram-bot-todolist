@@ -15,5 +15,8 @@ Telegram bot for doing to do list that you can share with friends. Integrate wit
 ## delete activity
 /delete - delete an activity from username
 
+## reset activities
+/reset - reset all the activities from username
+
 ### scheduler (SOON)
 run overall summary activities for yesterday, reset back the database

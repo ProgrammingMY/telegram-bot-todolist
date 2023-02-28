@@ -1,9 +1,6 @@
 __pycache__
-commands
+commands/__pycache__
 env
 .env
 get_commands.py
 text
-test.py
-test.json
-service_account.json

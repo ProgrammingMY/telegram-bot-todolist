@@ -1,70 +1,15 @@
 import os
-import gspread
-import threading
 from dotenv import load_dotenv
+import telebot
 load_dotenv()
 TOKEN = os.getenv('BOT_TOKEN')
-import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-## google account credentials
-credentials = {
-  "type": os.getenv('TYPE'),
-  "project_id": os.getenv('PROJECT_ID'),
-  "private_key_id": os.getenv('PRIVATE_KEY_ID'),
-  "private_key": os.getenv('PRIVATE_KEY').replace('\\n', '\n'),
-  "client_email": os.getenv('CLIENT_EMAIL'),
-  "client_id": os.getenv('CLIENT_ID'),
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": os.getenv('CLIENT_X509_CERT_URL')
-}
+# commands all commands
+from commands import add_task, delete_task, update_task, read_tasks, reset_task
 
-acc = gspread.service_account_from_dict(credentials)
-sheet = acc.open(os.getenv('SHEET'))
-lock = threading.Lock()
-
-# contruct inline keyboard button
-def reply_keyboard(activities):
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    for activity in activities:
-        button = InlineKeyboardButton(activity, callback_data=f"delete_{activity}")
-        keyboard.add(button)
-
-    button = InlineKeyboardButton("EXIT", callback_data="CANCEL")
-    keyboard.add(button)
-
-    return keyboard
-
-def inline_keyboard(items):
-    markup = InlineKeyboardMarkup(row_width=1)
-    for item in items:
-        button = InlineKeyboardButton(item, callback_data=f"status_{item}")
-        markup.add(button)
-
-    button = InlineKeyboardButton("EXIT", callback_data="CANCEL")
-    markup.add(button)
-
-    return markup
-
+# connect to bot
 bot = telebot.TeleBot(TOKEN)
 print("Bot is online....")
-
-status_map = {
-    "true": "🟢",
-    "false": "🔴"
-}
-
-def construct_table(data, spacing=15):
-    spaces = " "
-    table = "```\n"
-    for row in data:
-        repeats = spacing - len(row[0])
-        table += row[0] + (spaces*repeats) + status_map[str(row[1]).lower()] + "\n"
-
-    table += " ```"
-    return table
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -77,167 +22,45 @@ def send_welcome(message):
 
 # add a activity
 @bot.message_handler(commands=['add'])
-def add_activity(message):
-    # get argument
-    args = message.text.split()[1:]
-    if args == []:
-        return
-
-    # get array of activities separated by comma
-    # eliminate space in front and back of each activity
-    activities = [activity.strip() for activity in " ".join(args).split(",")]
-
-    # get username
-    username = str(message.from_user.username)
-
-    # check if the sheet is available for user
-    try:
-        wks = sheet.worksheet(username)
-    except:
-        wks = sheet.add_worksheet(username, rows=100, cols=5)
-        wks.update('A1', 'Activity')
-        wks.update('B1', 'Done')
-
-    # store all activities into sheet
-    for activity in activities:
-        wks.append_row([activity, str(False)], table_range="A1:B1")
-
-    bot.reply_to(message, "Added activity(s) successfully")
+def add(message):
+    add_task.add_activity(bot, message)
 
 # reset all activities to false status
 @bot.message_handler(commands=['reset'])
 def reset_activity(message):
-    # get username
-    username = str(message.from_user.username)
-
-    # check if the sheet is available for user
-    try:
-        wks = sheet.worksheet(username)
-    except:
-        wks = sheet.add_worksheet(username, rows=100, cols=5)
-        wks.update('A1', 'Activity')
-        wks.update('B1', 'Done')
-
-    # get all activities and total activities
-    activities = wks.col_values(1)[1:]
-    count = len(activities)
-
-    # update all activities to false status
-    for row in range(2, count+2):
-        wks.update_cell(row, 2, "False")
-
-    bot.reply_to(message, "Reset all activities to false status")
-
-# delete a activity
-@bot.message_handler(commands=['delete'])
-def delete_activity(message):
-    # get username
-    username = str(message.from_user.username)
-
-    # check if the sheet is available for user
-    try:
-        wks = sheet.worksheet(username)
-    except:
-        wks = sheet.add_worksheet(username, rows=100, cols=5)
-        wks.update('A1', 'Activity')
-        wks.update('B1', 'Done')
-    
-    # get all activities
-    activities = wks.col_values(1)[1:]
-    bot.reply_to(message, "Delete which activity?", reply_markup = reply_keyboard(activities))
+    reset_task.reset_activities(bot, message)
 
 # get all activites list
 @bot.message_handler(commands=['list'])
 def list_activity(message):
-    # get username
-    username = str(message.from_user.username)
+    read_tasks.display_activities(bot, message)
 
-    # check if the sheet is available for user
-    try:
-        wks = sheet.worksheet(username)
-    except:
-        wks = sheet.add_worksheet(username, rows=100, cols=5)
-        wks.update('A1', 'Activity')
-        wks.update('B1', 'Done')
-    
-    # get all activities
-    activities = wks.get_all_values()
-    if len(activities) < 2:
-        bot.reply_to(message, "You have no activity added")
-    else:
-        response = construct_table(activities[1:])
-        bot.reply_to(message, response, parse_mode='MarkdownV2')
+#########delete activity#########
+# delete an activity, display first
+@bot.message_handler(commands=['delete'])
+def delete_activity(message):
+    delete_task.display_activity(bot, message)
 
-# update
-@bot.message_handler(commands=['update'])
-def list_activity(message):
-    # get argument
-    args = message.text.split()[1:]
-    activity = " ".join(args).lower()
-
-    # get username
-    username = str(message.from_user.username)
-
-    # check if the sheet is available for user
-    try:
-        wks = sheet.worksheet(username)
-    except:
-        wks = sheet.add_worksheet(username, rows=100, cols=5)
-        wks.update('A1', 'Activity')
-        wks.update('B1', 'Done')
-
-    # get all activities
-    activities = wks.col_values(1)[1:]
-    bot.reply_to(message, "Choose an activity", reply_markup = inline_keyboard(activities))
-
-# delete function
+# delete the selected activity
 @bot.callback_query_handler(func=lambda message: message.data.startswith('delete_'))
 def delete_activity(callback_query):
-    # ensure the correct user that interact with the button
-    if callback_query.message.reply_to_message.from_user.id != callback_query.from_user.id:
-        return
+    delete_task.delete_activity(bot, callback_query)
 
-    # get the task name from the callback query
-    task = callback_query.data.split("_")[1]
+#########update activity#########
+# update an activity, display first
+@bot.message_handler(commands=['update'])
+def display_activity(message):
+    update_task.display_activity(bot, message)
 
-    # delete activity
-    wks = sheet.worksheet(str(callback_query.from_user.username))
-    cell = wks.find(task)
+# selected an activity to update
+@bot.callback_query_handler(func=lambda message: message.data.startswith('status_'))
+def callback_query(activity):
+    update_task.select_activity(bot, activity)
 
-    # The activity is not found
-    if cell is None:
-        bot.send_message(callback_query.message.chat.id, "The activity is not found")
-        return
-    
-    wks.delete_rows(cell.row)
-
-    # update the list
-    activities = wks.col_values(1)[1:]
-    bot.edit_message_text(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id, text=f"Delete which activity?", reply_markup=reply_keyboard(activities))
-    bot.send_message(callback_query.message.chat.id, task + " has been deleted")
-
-# yes no
+# update to true or false
 @bot.callback_query_handler(func=lambda message: message.data.startswith('update_'))
-def yesno_query(message):
-    # ensure the correct user that interact with the button
-    if message.json['from']['id'] != message.from_user.id:
-        return
-
-    # get the activity name from the callback query
-    activity = message.data.split("_")[1]
-    wks = sheet.worksheet(str(message.from_user.username))
-    cell = wks.find(activity.lower())
-
-    if cell is None:
-        return
-
-    status = message.data.split("_")[2]
-    if status == 'yes':
-        wks.update_cell(cell.row, 2, str(True))
-    elif status == 'no':
-        wks.update_cell(cell.row, 2, str(False))
-
-    bot.edit_message_text(chat_id=message.message.chat.id, message_id=message.message.message_id, text=f"{activity} has been updated")
+def yesno_query(callback_query):
+    update_task.update_activity(bot, callback_query)
 
 # cancel operation
 @bot.callback_query_handler(func=lambda message: message.data.startswith('CANCEL'))
@@ -248,27 +71,8 @@ def cancel_query(callback_query):
     
     bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
 
-# update callback
-@bot.callback_query_handler(func=lambda message: message.data.startswith('status_'))
-def callback_query(activity):
-    # ensure the correct user that interact with the button
-    if activity.message.reply_to_message.from_user.id != activity.from_user.id:
-        return
-
-    # get the activity name from the callback query
-    task = activity.data.split("_")[1]
-
-    markup = InlineKeyboardMarkup(row_width=2)
-    yes = InlineKeyboardButton('Yes', callback_data=f'update_{task}_yes')
-    no = InlineKeyboardButton('No', callback_data=f'update_{task}_no')
-    markup.add(yes, no)
-
-    bot.send_message(activity.message.chat.id, text=f"{task} completed?", reply_markup=markup)
-
 if __name__ == "__main__":
-    with lock:
-        try:
-            bot.infinity_polling()
-        except ConnectionResetError:
-            pass        
-
+    try:
+        bot.infinity_polling()
+    except ConnectionResetError:
+        pass        
