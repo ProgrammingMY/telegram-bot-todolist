@@ -11,7 +11,7 @@ db = client[os.getenv('MONGO_DB')]
 collection = db[os.getenv('MONGO_COLLECTION')]
 
 # commands all commands
-from commands import add_task, delete_task, update_task, read_tasks, reset_task
+from commands import add_task, delete_task, update_task, read_tasks, reset_task, download_csv
 
 # connect to bot
 bot = telebot.TeleBot(TOKEN)
@@ -62,6 +62,11 @@ def display_activity(message):
 @bot.callback_query_handler(func=lambda message: message.data.startswith('status_'))
 def callback_query(activity):
     update_task.select_activity(bot, collection, activity)
+
+# download csv from dynamodb
+@bot.message_handler(commands=['download'])
+def download(message):
+    download_csv.download(bot, message)
 
 # cancel operation
 @bot.callback_query_handler(func=lambda message: message.data.startswith('CANCEL'))
